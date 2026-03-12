@@ -39,6 +39,61 @@
 
 ## Tool system
 
+### Tools as mini-websites
+
+Every tool is a first-class feature with its own UI page, not just a backend function.
+Tools are discoverable through AskPenn (the chat interface) and navigable directly via URL.
+
+```
+AskPenn chat
+  └─ surfaces tool via name/description match
+  └─ links to /tools/[tool-id]
+       └─ full-page tool UI, rendered inside apps/web shell
+```
+
+Each tool ships with:
+- **Backend logic** — the `Tool` class in `tools/<tool-id>/` (pure `core`-only, no UI)
+- **UI page** — a Next.js page at `apps/web/src/app/tools/[tool-id]/page.tsx`
+- **UI components** — co-located under `apps/web/src/app/tools/[tool-id]/`
+
+The tool `manifest` (defined in the `Tool` class) is the single source of truth for both
+AskPenn discovery and the `/tools` directory page:
+
+```ts
+manifest = {
+  id: "course-finder",
+  name: "Course Finder",
+  description: "Find Penn courses by topic, requirement, or instructor.",
+  // AskPenn uses `description` to match user intent and surface this tool
+}
+```
+
+### Folder layout (tool with UI)
+
+```
+tools/
+  course-finder/          ← backend package (@penntools/tool-course-finder)
+    src/
+      index.ts            ← CourseFinderTool extends Tool<Input, Output>
+    src/__tests__/
+
+apps/web/src/app/
+  tools/
+    page.tsx              ← /tools  →  directory of all registered tools
+    [tool-id]/
+      page.tsx            ← /tools/course-finder  →  tool's full UI
+      components/         ← tool-specific React components (optional)
+```
+
+### How AskPenn surfaces tools
+
+AskPenn includes serialised tool manifests in its system prompt (same v2 mechanism as
+tool invocation). When a user's message matches a tool's purpose, AskPenn replies with
+a link and/or a brief description, directing the user to `/tools/[tool-id]`.
+
+Tools can also be invoked inline from chat (returning structured output); the UI page
+is the richer, stateful version of that same experience.
+
 ### Adding a new tool
 
 1. `mkdir tools/my-tool && cd tools/my-tool`
@@ -46,7 +101,8 @@
 3. Extend `Tool<MyInput, MyOutput>` and fill in `manifest` + `execute()`.
 4. Add `@penntools/tool-my-tool` to `apps/web/package.json` dependencies.
 5. In `apps/web/src/lib/container.ts`, add one import + one `toolRegistry.register(new MyTool())` call (guarded by the duplicate-id check).
-6. Write tests in `src/__tests__/`.
+6. Create `apps/web/src/app/tools/my-tool/page.tsx` for the tool's UI page.
+7. Write tests in `src/__tests__/`.
 
 ### How the registry works
 
