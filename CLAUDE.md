@@ -48,8 +48,8 @@ When the user says "Register new team", collect these inputs one at a time:
 2. **Numeric tool ID** — positive integer; verify `tools/{ID}/` does not already exist
 3. **Short description** — one sentence
 4. **Category** — e.g. `Academics`, `Recruiting`, `Platform`
-5. **Contributors** — comma-separated names (optional, press Enter to skip)
-6. **Mentor name** — optional
+5. **Contributors** — comma-separated names
+6. **Mentor name** — optional; write `skip` to move to the next step for now
 
 Show a summary and ask for confirmation before creating any files.
 
