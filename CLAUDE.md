@@ -50,6 +50,9 @@ When the user says "Register new team", collect these inputs one at a time:
 4. **Category** — e.g. `Academics`, `Recruiting`, `Platform`
 5. **Contributors** — comma-separated names
 6. **Mentor name** — optional; write `skip` to move to the next step for now
+7. **Version** — semver string, e.g. `"0.1.0"`
+8. **Date of inception** — ISO date, e.g. `"2025-01-15"`
+9. **Latest release date** — ISO date, e.g. `"2025-03-14"`
 
 Show a summary and ask for confirmation before creating any files.
 

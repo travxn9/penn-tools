@@ -30,9 +30,20 @@ read -rp "Short description (one sentence): " DESCRIPTION
 read -rp "Category (e.g. Academics, Recruiting, Platform): " CATEGORY
 [[ -n "$CATEGORY" ]] || die "Category cannot be empty."
 
-read -rp "Contributors (comma-separated names, or press Enter to skip): " CONTRIBUTORS_RAW
+read -rp "Contributors (comma-separated names): " CONTRIBUTORS_RAW
+[[ -n "$CONTRIBUTORS_RAW" ]] || die "Contributors cannot be empty."
 
-read -rp "Mentor name (or press Enter to skip): " MENTOR
+read -rp "Mentor name (or write skip to move to the next step for now): " MENTOR
+[[ "$MENTOR" == "skip" ]] && MENTOR=""
+
+read -rp "Version (e.g. 0.1.0): " VERSION
+[[ -n "$VERSION" ]] || die "Version cannot be empty."
+
+read -rp "Date of inception (YYYY-MM-DD): " INCEPTION_DATE
+[[ -n "$INCEPTION_DATE" ]] || die "Inception date cannot be empty."
+
+read -rp "Latest release date (YYYY-MM-DD): " LATEST_RELEASE_DATE
+[[ -n "$LATEST_RELEASE_DATE" ]] || die "Latest release date cannot be empty."
 
 # ── Derived values ────────────────────────────────────────────────────────────
 TOOL_DIR="$REPO_ROOT/tools/$ID"
@@ -79,8 +90,11 @@ echo "  Package:      $PKG_NAME"
 echo "  Class:        $CLASS_NAME"
 echo "  Description:  $DESCRIPTION"
 echo "  Category:     $CATEGORY"
-echo "  Contributors: $CONTRIBUTORS_JSON"
-echo "  Mentor:       ${MENTOR:-<none>}"
+echo "  Contributors:        $CONTRIBUTORS_JSON"
+echo "  Mentor:              ${MENTOR:-<none>}"
+echo "  Version:             $VERSION"
+echo "  Inception date:      $INCEPTION_DATE"
+echo "  Latest release date: $LATEST_RELEASE_DATE"
 echo ""
 echo "  Files to create:"
 echo "    tools/$ID/meta.json"
@@ -105,12 +119,13 @@ mkdir -p "$TOOL_DIR/src"
 # ── meta.json ─────────────────────────────────────────────────────────────────
 info "Writing tools/$ID/meta.json..."
 META_CONTENT="{\n  \"name\": \"$TITLE\",\n  \"description\": \"$DESCRIPTION\",\n  \"category\": \"$CATEGORY\""
-if [[ "$CONTRIBUTORS_JSON" != "[]" ]]; then
-  META_CONTENT="$META_CONTENT,\n  \"builders\": $CONTRIBUTORS_JSON"
-fi
+META_CONTENT="$META_CONTENT,\n  \"builders\": $CONTRIBUTORS_JSON"
 if [[ -n "$MENTOR" ]]; then
   META_CONTENT="$META_CONTENT,\n  \"mentor\": \"$MENTOR\""
 fi
+META_CONTENT="$META_CONTENT,\n  \"version\": \"$VERSION\""
+META_CONTENT="$META_CONTENT,\n  \"inceptionDate\": \"$INCEPTION_DATE\""
+META_CONTENT="$META_CONTENT,\n  \"latestReleaseDate\": \"$LATEST_RELEASE_DATE\""
 META_CONTENT="$META_CONTENT\n}"
 printf "%b\n" "$META_CONTENT" > "$TOOL_DIR/meta.json"
 
@@ -175,13 +190,6 @@ EOF
 # ── src/Tool{ID}.ts ───────────────────────────────────────────────────────────
 info "Writing tools/$ID/src/${CLASS_NAME}.ts..."
 
-# Build optional manifest fields
-MANIFEST_CONTRIBUTORS=""
-if [[ "$CONTRIBUTORS_JSON" != "[]" ]]; then
-  MANIFEST_CONTRIBUTORS="
-    contributors: $CONTRIBUTORS_JSON,"
-fi
-
 MANIFEST_MENTOR=""
 if [[ -n "$MENTOR" ]]; then
   MANIFEST_MENTOR="
@@ -199,7 +207,11 @@ export class ${CLASS_NAME} extends Tool<${CLASS_NAME}Input, ${CLASS_NAME}Output>
     id: "$ID",
     title: "$TITLE",
     description: "$DESCRIPTION",
-    image: "/tools/$ID/icon.png",$(printf '%s' "$MANIFEST_CONTRIBUTORS")$(printf '%s' "$MANIFEST_MENTOR")
+    image: "/tools/$ID/icon.png",
+    contributors: $CONTRIBUTORS_JSON,$(printf '%s' "$MANIFEST_MENTOR")
+    version: "$VERSION",
+    inceptionDate: "$INCEPTION_DATE",
+    latestReleaseDate: "$LATEST_RELEASE_DATE",
   };
 
   async execute(

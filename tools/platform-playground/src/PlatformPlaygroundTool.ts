@@ -11,6 +11,9 @@ export class PlatformPlaygroundTool extends Tool<PlatformPlaygroundInput, Platfo
     image: "/tools/platform-playground/icon.png",
     contributors: ["Anushka Sheoran", "Harsh Mishra", "Henry Corkran", "Ronak Suchindra", "Tony Sui"],
     mentor: "Ananya Chandra",
+    version: "0.1.0",
+    inceptionDate: "2025-01-01",
+    latestReleaseDate: "2025-03-14",
   };
 
   async execute(
