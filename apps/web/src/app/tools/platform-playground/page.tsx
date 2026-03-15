@@ -405,30 +405,25 @@ interface ToolManifest {
   ];
 
   return (
-    // Full-bleed: escape the 720px centered .content box to span full viewport width
     <div
       style={{
-        width: "100vw",
-        position: "relative",
-        left: "50%",
-        transform: "translateX(-50%)",
+        position: "fixed",
+        top: 57,
+        left: 0,
+        right: 0,
+        bottom: 0,
         display: "flex",
-        minHeight: "calc(100vh - 57px)",
+        background: "var(--bg, #fff)",
         borderTop: "1px solid #e5e5e5",
       }}
     >
-      {/* Left nav — sticky so it stays visible while content scrolls */}
+      {/* Left nav — never scrolls, only 2 items */}
       <nav
         style={{
           width: 220,
           flexShrink: 0,
           borderRight: "1px solid #e5e5e5",
           padding: "32px 0",
-          position: "sticky",
-          top: 57,
-          alignSelf: "flex-start",
-          height: "calc(100vh - 57px)",
-          overflowY: "auto",
         }}
       >
         <div style={{ padding: "0 16px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#9ca3af" }}>
@@ -461,8 +456,8 @@ interface ToolManifest {
         })}
       </nav>
 
-      {/* Main content — takes all remaining space */}
-      <main style={{ flex: 1, minWidth: 0, padding: "48px 48px 80px", overflowY: "auto" }}>
+      {/* Right panel — only this scrolls when content overflows */}
+      <main style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "48px 48px 80px" }}>
         {NAV_ITEMS.find((item) => item.id === activeNav)?.render()}
       </main>
     </div>
