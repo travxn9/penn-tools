@@ -408,7 +408,7 @@ interface ToolManifest {
     <div
       style={{
         position: "fixed",
-        top: 57,
+        top: 0,
         left: 0,
         right: 0,
         bottom: 0,
@@ -423,7 +423,7 @@ interface ToolManifest {
           width: 220,
           flexShrink: 0,
           borderRight: "1px solid #e5e5e5",
-          padding: "32px 0",
+          padding: "56px 0 32px",
         }}
       >
         <div style={{ padding: "0 16px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#9ca3af" }}>

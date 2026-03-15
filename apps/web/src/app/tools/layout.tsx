@@ -5,10 +5,10 @@ import styles from "./layout.module.css";
 export default function ToolsLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.container}>
-      <header className={styles.topBar}>
-        <Link href="/" className={styles.back}>← AskPenn</Link>
+      <Link href="/" className={styles.back}>← AskPenn</Link>
+      <div className={styles.infoCorner}>
         <ToolInfoButton />
-      </header>
+      </div>
       <main className={styles.content}>{children}</main>
     </div>
   );

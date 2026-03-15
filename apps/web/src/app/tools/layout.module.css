@@ -5,19 +5,11 @@
   flex-direction: column;
 }
 
-.topBar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--input-border);
-}
-
 .back {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -26,9 +18,17 @@
   text-decoration: none;
   padding: 6px 10px;
   border-radius: 8px;
+  background: var(--bg);
   transition: background 0.1s;
 }
 .back:hover { background: var(--nav-hover); }
+
+.infoCorner {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+}
 
 .content {
   flex: 1;
