@@ -58,7 +58,7 @@ export function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, tools }:
     <aside className={styles.sidebar}>
       {/* Top nav */}
       <nav className={styles.topNav}>
-        <button className={styles.newChat} onClick={onNewChat}>
+        <button className={styles.newChat} onClick={onNewChat} disabled>
           <IconNewChat />
           <span>New chat</span>
         </button>
