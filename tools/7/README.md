@@ -130,6 +130,21 @@ The app needs API keys to call the AI model. These are secret — never commit t
 
 ---
 
+## Things that can seriously mess up the repo
+
+These commands look harmless but can delete or overwrite your teammates' work permanently. Don't run them unless you fully understand what they do:
+
+| Command | Why it's dangerous |
+|---|---|
+| `git push --force` | Overwrites what's on the server with your local copy — can erase teammates' commits |
+| `git reset --hard` | Permanently deletes your uncommitted changes with no undo |
+| `git rebase` | Rewrites commit history — causes major conflicts for everyone else |
+| `git checkout .` or `git restore .` | Wipes all your unsaved changes instantly |
+
+**Rule of thumb:** if a command has `--force`, `--hard`, or you're not sure what it does — stop and Google it first, or ask before running.
+
+---
+
 ## Do I ever need a new branch?
 
 No — your whole team works on `Goonbranch_1`. You don't need to create new branches.
