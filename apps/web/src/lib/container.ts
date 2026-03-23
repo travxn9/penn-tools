@@ -48,6 +48,8 @@ import { Tool8 } from "@penntools/tool-8";
 toolRegistry.register(new Tool8());
 import { PennPlannerTool } from "@penntools/tool-penn-planner";
 toolRegistry.register(new PennPlannerTool());
+import { Tool1 } from "@penntools/tool-1";
+toolRegistry.register(new Tool1());
 
 // ── Resource seeding (fire-and-forget) ────────────────────────────────────────
 // Imported lazily to avoid a circular reference with the logger defined below.
