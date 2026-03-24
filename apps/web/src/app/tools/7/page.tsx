@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { parseFile } from "./parseFile";
+import { parseResumeToStructuredData } from "./parseFile";
 import type { UploadedFile } from "./parseFile";
 import { downloadAsPDF, copyToClipboard } from "./exportResume";
 
@@ -105,7 +106,7 @@ function PdfCard({ children, style }: { children: React.ReactNode; style?: React
 }
 function PdfScroll({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ flex: 1, overflowY: "auto", overflowX: "auto", padding: "28px 32px", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+    <div style={{ flex: 1, overflowY: "auto", overflowX: "auto", padding: "28px 40px", display: "flex", justifyContent: "flex-start", alignItems: "flex-start" }}>
       {children}
     </div>
   );
@@ -127,6 +128,91 @@ function ResumeTextView({ text, html }: { text: string; html?: string }) {
       {text || <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No content to display.</span>}
     </div>
   );
+}
+
+// Structured resume rendering
+// Matches ALL-CAPS section headers (letters, spaces, &, /, -)
+const SECTION_RE = /^[A-Z][A-Z\s&\/\-]{2,}$/;
+
+function StructuredResumeView({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+
+  // Find first section header to isolate the name/contact block above it
+  const firstSectionIdx = lines.findIndex(l => SECTION_RE.test(l.trim()));
+  const headerLines = firstSectionIdx > 0 ? lines.slice(0, firstSectionIdx) : [];
+  const bodyLines   = firstSectionIdx >= 0 ? lines.slice(firstSectionIdx) : lines;
+
+  // Name (first non-empty) + contact lines
+  let nameRendered = false;
+  headerLines.forEach((line, i) => {
+    const t = line.trim();
+    if (!t) return;
+    if (!nameRendered) {
+      elements.push(<div key={`h${i}`} style={W.name}>{t}</div>);
+      nameRendered = true;
+    } else {
+      elements.push(<div key={`hc${i}`} style={W.contact}>{t}</div>);
+    }
+  });
+
+  // Body — flush accumulated bullets into a <ul>
+  const pendingBullets: React.ReactNode[] = [];
+  const flushBullets = (key: string) => {
+    if (pendingBullets.length === 0) return;
+    elements.push(<ul key={key} style={W.ul}>{[...pendingBullets]}</ul>);
+    pendingBullets.length = 0;
+  };
+
+  bodyLines.forEach((line, i) => {
+    const t = line.trim();
+
+    // Section header — ALL CAPS
+    if (SECTION_RE.test(t)) {
+      flushBullets(`bl${i}`);
+      elements.push(<div key={`sh${i}`} style={{ ...W.section, marginTop: 10, marginBottom: 4 }}>{t}</div>);
+      return;
+    }
+
+    // Bullet
+    if (/^[•\-]/.test(t)) {
+      pendingBullets.push(<li key={`li${i}`} style={W.li}>{t.replace(/^[•\-]\s*/, "")}</li>);
+      return;
+    }
+
+    flushBullets(`bl${i}`);
+    if (!t) return;
+
+    // Two-column: "Left content | Right content"  (pipe separator from LLM output)
+    // Also handle legacy 2+ spaces as fallback
+    const pipeCol = t.includes(" | ") ? t.split(" | ") : null;
+    const spaceCol = !pipeCol ? t.match(/^(.+?)\s{3,}(\S.*)$/) : null;
+    const left  = pipeCol ? pipeCol[0]!.trim() : spaceCol ? spaceCol[1]!.trim() : null;
+    const right = pipeCol ? pipeCol.slice(1).join(" | ").trim() : spaceCol ? spaceCol[2]!.trim() : null;
+
+    if (left && right) {
+      // ORG if left side is mostly uppercase letters (company/school names)
+      const isOrg = /^[A-Z][A-Z\s&,\-\.]{2,}/.test(left);
+      elements.push(
+        <div key={`r${i}`} style={{ ...W.row, marginTop: isOrg ? 6 : 0 }}>
+          <span style={isOrg ? W.org : W.role}>{left}</span>
+          <span style={{ ...W.meta, fontWeight: 700 }}>{right}</span>
+        </div>
+      );
+      return;
+    }
+
+    // Single-column: italic for mixed-case (role/description), bold-upper for all-caps orphan
+    const isAllCaps = /^[A-Z\s&,\-\.]+$/.test(t) && t.length > 3;
+    elements.push(
+      <div key={`p${i}`} style={isAllCaps ? { ...W.org, marginTop: 4 } : { ...W.role, marginBottom: 1 }}>
+        {t}
+      </div>
+    );
+  });
+
+  flushBullets("final");
+  return <div style={W.doc}>{elements}</div>;
 }
 
 // ── Chat message type ──────────────────────────────────────────────────────────
@@ -534,7 +620,7 @@ function WorkspaceScreen({ uploadedFiles, onGenerate, onFilesAdded, onFileTagCha
             {pdfLoading ? "Exporting…" : "Export PDF"}
           </button>
         </div>
-<PdfScroll>
+  <PdfScroll>
   <PdfCard>
     {previewFile?.fileUrl ? (
       <div
@@ -615,18 +701,41 @@ function GeneratingScreen({ baseResume, jobDescription, allFiles, onDone }: {
       : "";
 
     const prompt = [
-      "You are an expert resume writer. Tailor the resume below to match the job description.",
-      "Use any additional context files to strengthen the resume with relevant experience and skills.",
-      "Return ONLY the tailored resume text — no preamble, no markdown fences.",
+      "You are an expert Wharton MBA resume writer. Produce a heavily tailored, one-page resume for the job below.",
+      "",
+      "OUTPUT FORMAT — follow exactly:",
+      "- Line 1: candidate full name only (no label)",
+      "- Line 2: contact info only (no label)",
+      "- Section headers in ALL CAPS on their own line (e.g. EDUCATION, EXPERIENCE, ADDITIONAL INFORMATION)",
+      "- For lines with a right-aligned element (location or date), write: Left content | Right content",
+      "  Examples:  BAIN & COMPANY | San Francisco, CA",
+      "             Manager | 2023-2025",
+      "- Bullet points start with • (bullet character)",
+      "- Blank line between sections",
+      "",
+      "TAILORING RULES:",
+      "- Only rewrite bullets that benefit from tailoring — leave well-matched bullets as-is.",
+      "- When rewriting, use keywords and skills from the job description and lead with strong action verbs.",
+      "- Add new bullets for a role if there is relevant experience not yet captured; remove bullets that are clearly irrelevant to this role.",
+      "- Reorder bullets within each role to put the most relevant ones first.",
+      "- Keep all org names, dates, and locations exactly as in the original.",
+      "- Do NOT invent experiences, companies, titles, or metrics that are not in the original.",
+      "- Maintain a polished, professional MBA resume tone.",
+      "",
+      "ONE-PAGE RULE — critical:",
+      "- The final resume must fit on a single 8.5×11\" page at 12pt Times New Roman with 0.75\" margins.",
+      "- That is roughly 400–550 words of body text total.",
+      "- To stay within one page: trim bullets to 1–2 lines each, cut the least relevant bullets, and keep descriptions concise.",
+      "- If the original has more content than fits, prioritize experience most relevant to the job description.",
       "",
       "=== JOB DESCRIPTION ===",
       jobDescription || "No job description provided.",
       "",
       "=== ORIGINAL RESUME ===",
-      baseResume || "No resume provided.",
+      baseResume,
       contextSection,
       "",
-      "=== TAILORED RESUME ===",
+      "=== TAILORED ONE-PAGE RESUME (output below, no preamble) ===",
     ].join("\n");
 
     llmComplete(prompt)
@@ -669,14 +778,48 @@ function GeneratingScreen({ baseResume, jobDescription, allFiles, onDone }: {
 
 // ── Screen 5: Comparison ──────────────────────────────────────────────────────
 const COMP_ZOOM = 0.75;
-function ComparisonScreen({ onAccept, jobDescription, baseResumeContent, tailoredResume }: {
+// ── Scaled PDF pane — fills its flex column and scales PDF to fit ──────────────
+function ScaledPdfPane({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const availW = el.clientWidth - 40; // 20px padding each side
+      setScale(Math.min(0.75, availW / PDF_WIDTH));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <div ref={containerRef} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px", background: "#f3f4f6" }}>
+        {/* Outer box tells the scroll container how much space the scaled content takes */}
+        <div style={{ width: PDF_WIDTH * scale, minHeight: PDF_HEIGHT * scale }}>
+          <div style={{ width: PDF_WIDTH, transformOrigin: "top left", transform: `scale(${scale})` }}>
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonScreen({ onAccept, jobDescription, baseResumeContent, tailoredResume, baseResumeFileUrl }: {
   onAccept: () => void;
   jobDescription: string;
   baseResumeContent: string;
   tailoredResume: string;
+  baseResumeFileUrl: string;
 }) {
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: "#f9fafb" }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      {/* Top bar */}
       <div style={{ padding: "16px 32px", background: "#fff", borderBottom: "1px solid #e5e5e5", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#0d0d0d" }}>Here&apos;s your tailored resume</div>
@@ -687,22 +830,42 @@ function ComparisonScreen({ onAccept, jobDescription, baseResumeContent, tailore
           <button onClick={onAccept} style={btnPrimary}>Accept Changes</button>
         </div>
       </div>
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRight: "1px solid #e5e5e5" }}>
-          <div style={{ padding: "10px 20px", background: "#f3f4f6", borderBottom: "1px solid #e5e5e5", fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, flexShrink: 0 }}>Original Resume</div>
-          <div style={{ flex: 1, overflowY: "auto", overflowX: "auto", padding: "20px", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
-            <div style={{ zoom: COMP_ZOOM } as React.CSSProperties}>
-              <PdfCard><ResumeTextView text={baseResumeContent} /></PdfCard>
-            </div>
-          </div>
+
+      {/* Full-width column headers */}
+      <div style={{ display: "flex", flexShrink: 0, gap: 4 }}>
+        <div style={{ flex: 1, padding: "10px 20px", background: "#4b5563", fontSize: 12, fontWeight: 700, color: "#f9fafb", textTransform: "uppercase", letterSpacing: 1 }}>
+          Original Resume
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "10px 20px", background: "#e0f2fe", borderBottom: "1px solid #bae6fd", fontSize: 12, fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: 1, flexShrink: 0 }}>Tailored Resume ✦</div>
-          <div style={{ flex: 1, overflowY: "auto", overflowX: "auto", padding: "20px", display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
-            <div style={{ zoom: COMP_ZOOM } as React.CSSProperties}>
-              <PdfCard><ResumeTextView text={tailoredResume || "Generating…"} /></PdfCard>
-            </div>
-          </div>
+        <div style={{ flex: 1, padding: "10px 20px", background: "#0369a1", fontSize: 12, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 1 }}>
+          Tailored Resume ✦
+        </div>
+      </div>
+
+      {/* Side-by-side panes — centered, max width = 2 × (scaled PDF + padding) */}
+      <div style={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden", justifyContent: "center", background: "#f3f4f6" }}>
+        <div style={{ display: "flex", width: "100%", maxWidth: (PDF_WIDTH * 0.75 + 40) * 2, minHeight: 0 }}>
+          <ScaledPdfPane>
+            {baseResumeFileUrl ? (
+              <div style={{ width: PDF_WIDTH, minHeight: PDF_HEIGHT, background: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,0.15)", borderRadius: 1 }}>
+                <iframe
+                  src={`${baseResumeFileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                  width={PDF_WIDTH}
+                  height={PDF_HEIGHT}
+                  style={{ border: "none", display: "block" }}
+                />
+              </div>
+            ) : (
+              <PdfCard>
+                <ResumeTextView text={baseResumeContent} />
+              </PdfCard>
+            )}
+          </ScaledPdfPane>
+
+          <ScaledPdfPane>
+            <PdfCard>
+              <StructuredResumeView text={tailoredResume} />
+            </PdfCard>
+          </ScaledPdfPane>
         </div>
       </div>
     </div>
@@ -710,6 +873,108 @@ function ComparisonScreen({ onAccept, jobDescription, baseResumeContent, tailore
 }
 
 // ── Screen 6: Edit Mode ────────────────────────────────────────────────────────
+
+// Converts the LLM plain-text resume (with | separators) into inline-styled HTML
+// so the contentEditable editor and PDF export both render Wharton formatting.
+function tailoredResumeToHtml(text: string): string {
+  const lines = text.split("\n");
+  const parts: string[] = [];
+
+  const firstSectionIdx = lines.findIndex(l => SECTION_RE.test(l.trim()));
+  const headerLines = firstSectionIdx > 0 ? lines.slice(0, firstSectionIdx) : [];
+  const bodyLines   = firstSectionIdx >= 0 ? lines.slice(firstSectionIdx) : lines;
+
+  let nameRendered = false;
+  headerLines.forEach(line => {
+    const t = line.trim();
+    if (!t) return;
+    if (!nameRendered) {
+      parts.push(`<div style="text-align:center;font-size:14pt;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">${t}</div>`);
+      nameRendered = true;
+    } else {
+      parts.push(`<div style="text-align:center;font-size:10pt;margin-bottom:10px">${t}</div>`);
+    }
+  });
+
+  const pendingLi: string[] = [];
+  const flushBullets = () => {
+    if (!pendingLi.length) return;
+    parts.push(`<ul style="margin:2px 0 6px;padding-left:18px">${pendingLi.join("")}</ul>`);
+    pendingLi.length = 0;
+  };
+
+  bodyLines.forEach(line => {
+    const t = line.trim();
+
+    if (SECTION_RE.test(t)) {
+      flushBullets();
+      parts.push(`<div style="text-align:center;font-weight:700;text-transform:uppercase;margin-top:10px;margin-bottom:4px">${t}</div>`);
+      return;
+    }
+
+    if (/^[•\-]/.test(t)) {
+      pendingLi.push(`<li style="font-size:12pt;line-height:1.35;margin-bottom:1px">${t.replace(/^[•\-]\s*/, "")}</li>`);
+      return;
+    }
+
+    flushBullets();
+    if (!t) return;
+
+    const pipeCol  = t.includes(" | ") ? t.split(" | ") : null;
+    const spaceCol = !pipeCol ? t.match(/^(.+?)\s{3,}(\S.*)$/) : null;
+    const left  = pipeCol ? pipeCol[0]!.trim() : spaceCol ? spaceCol[1]!.trim() : null;
+    const right = pipeCol ? pipeCol.slice(1).join(" | ").trim() : spaceCol ? spaceCol[2]!.trim() : null;
+
+    if (left && right) {
+      const isOrg = /^[A-Z][A-Z\s&,\-\.]{2,}/.test(left);
+      const leftStyle = isOrg
+        ? "font-weight:700;text-transform:uppercase"
+        : "font-style:italic";
+      parts.push(
+        `<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:${isOrg ? 6 : 0}px">` +
+        `<span style="${leftStyle}">${left}</span>` +
+        `<span style="font-weight:700">${right}</span></div>`
+      );
+      return;
+    }
+
+    const isAllCaps = /^[A-Z\s&,\-\.]+$/.test(t) && t.length > 3;
+    parts.push(`<div style="${isAllCaps ? "font-weight:700;text-transform:uppercase;margin-top:4px" : "font-style:italic;margin-bottom:1px"}">${t}</div>`);
+  });
+
+  flushBullets();
+  return parts.join("");
+}
+
+// Reads the contentEditable DOM back into pipe-formatted plain text so the AI
+// editor receives context in the same format it is expected to output.
+function htmlToResumeText(el: HTMLElement): string {
+  const lines: string[] = [];
+  el.childNodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = node.textContent?.trim();
+      if (t) lines.push(t);
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const child = node as HTMLElement;
+      if (child.tagName === "UL") {
+        child.querySelectorAll("li").forEach(li => {
+          lines.push(`• ${li.textContent?.trim() ?? ""}`);
+        });
+      } else if (child.style.justifyContent === "space-between") {
+        // Two-column row — reconstruct as Left | Right
+        const spans = child.querySelectorAll("span");
+        const left  = spans[0]?.textContent?.trim() ?? "";
+        const right = spans[spans.length - 1]?.textContent?.trim() ?? "";
+        if (left && right) lines.push(`${left} | ${right}`);
+        else lines.push(child.textContent?.trim() ?? "");
+      } else {
+        const t = child.textContent?.trim();
+        if (t) lines.push(t);
+      }
+    }
+  });
+  return lines.join("\n");
+}
 
 // ── Formatting toolbar helpers ─────────────────────────────────────────────────
 const FONT_FAMILIES = [
@@ -741,8 +1006,14 @@ function TbDivider() {
   return <div style={{ width: 1, height: 22, background: "#e5e7eb", flexShrink: 0 }} />;
 }
 
+/** Contenteditable formatting still relies on execCommand; avoid deprecated `document.execCommand` type at call sites. */
 function exec(cmd: string, value?: string) {
-  document.execCommand(cmd, false, value);
+  const legacyExecCommand = Document.prototype.execCommand as (
+    commandId: string,
+    showUI?: boolean,
+    value?: string,
+  ) => boolean;
+  legacyExecCommand.call(document, cmd, false, value);
 }
 
 function EditScreen({ fontSizePt, setFontSizePt, onExport, tailoredResume }: {
@@ -758,7 +1029,7 @@ function EditScreen({ fontSizePt, setFontSizePt, onExport, tailoredResume }: {
 
   useEffect(() => {
     if (editAreaRef.current && !editAreaRef.current.innerHTML) {
-      editAreaRef.current.innerText = tailoredResume;
+      editAreaRef.current.innerHTML = tailoredResumeToHtml(tailoredResume);
     }
   }, [tailoredResume]);
 
@@ -873,20 +1144,30 @@ function EditChatResizer({ editAreaRef, onExport }: { editAreaRef: React.RefObje
       <div style={{ width: chatCol.width, flexShrink: 0, display: "flex", flexDirection: "column", borderLeft: "none" }}>
         <AiChatPanel
           title="AI Editor"
-          systemPrompt="You are an expert resume editor. The user's current resume is provided in Context. When asked to rewrite or revise, return ONLY the complete updated resume text with no preamble, no markdown fences, and no explanation. For questions or advice, respond concisely."
+          systemPrompt={[
+            "You are an expert resume editor. The user's current resume is provided in Context.",
+            "",
+            "OUTPUT FORMAT — when returning a revised resume, follow exactly:",
+            "- Line 1: candidate full name only",
+            "- Line 2: contact info only",
+            "- Section headers in ALL CAPS on their own line (e.g. EDUCATION, EXPERIENCE)",
+            "- Lines with right-aligned content use: Left content | Right content",
+            "  e.g. 'BAIN & COMPANY | San Francisco, CA'  or  'Manager | 2023-2025'",
+            "- Bullets start with • (bullet character)",
+            "- Blank line between sections",
+            "",
+            "Return ONLY the resume text with no preamble, no markdown, no explanation.",
+            "For questions or advice (not revisions), respond concisely in plain text.",
+          ].join("\n")}
           getContextText={() => {
-            const t = editAreaRef.current?.innerText?.trim();
+            const el = editAreaRef.current;
+            if (!el) return "";
+            const t = htmlToResumeText(el).trim();
             return t ? `Current resume:\n${t}` : "";
           }}
           onApply={text => {
             if (!editAreaRef.current) return;
-            // Convert plain-text response to HTML so the editor stays rich
-            const escaped = text
-              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            editAreaRef.current.innerHTML = escaped
-              .split("\n")
-              .map(line => `<div>${line || "<br>"}</div>`)
-              .join("");
+            editAreaRef.current.innerHTML = tailoredResumeToHtml(text);
           }}
           footer={
             <button
@@ -986,6 +1267,7 @@ export default function Tool7Page() {
   const [screen, setScreen]                           = useState<Screen>("landing");
   const [fontSizePt, setFontSizePt]                   = useState(12);
   const [uploadedFiles, setUploadedFiles]             = useState<UploadedFile[]>([]);
+  const [baseResumeFileUrl, setBaseResumeFileUrl] = useState(""); // ⭐ ADD THIS
   const [allGenerateFiles, setAllGenerateFiles]       = useState<UploadedFile[]>([]);
   const [activeResumeContent, setActiveResumeContent] = useState("");
   const [jobDescription, setJobDescription]           = useState("");
@@ -1011,13 +1293,20 @@ export default function Tool7Page() {
       )}
       {screen === "workspace"  && (
         <WorkspaceScreen
-          uploadedFiles={uploadedFiles}
-          onGenerate={(jd, content, files) => {
-            setJobDescription(jd);
-            setActiveResumeContent(content);
-            setAllGenerateFiles(files);
-            setScreen("generating");
-          }}
+        uploadedFiles={uploadedFiles}
+        onGenerate={(jd, content, files) => {
+          setJobDescription(jd);
+          setActiveResumeContent(content);
+          setAllGenerateFiles(files);
+      
+          // ⭐ ADD THIS BLOCK
+          const baseFile = files.find(f => f.tag === "Resume");
+          if (baseFile?.fileUrl) {
+            setBaseResumeFileUrl(baseFile.fileUrl);
+          }
+      
+          setScreen("generating");
+        }}
           onFilesAdded={newFiles => setUploadedFiles(prev => [...prev, ...newFiles])}
           onFileTagChange={handleFileTagChange}
           onFileDelete={handleFileDelete}
@@ -1037,6 +1326,7 @@ export default function Tool7Page() {
           jobDescription={jobDescription}
           baseResumeContent={activeResumeContent}
           tailoredResume={tailoredResume}
+          baseResumeFileUrl={baseResumeFileUrl} // ⭐ ADD THIS
         />
       )}
       {screen === "edit" && (
