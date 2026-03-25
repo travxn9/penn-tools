@@ -113,9 +113,19 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
-<<<<<<< HEAD
   tools/1:
-=======
+    dependencies:
+      '@penntools/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.33)
+
   tools/18:
     dependencies:
       '@penntools/core':
@@ -143,7 +153,6 @@ importers:
         version: 1.6.1(@types/node@20.19.33)
 
   tools/7:
->>>>>>> 730f071b6cd257e65f4d8b5d49f92863e559860c
     dependencies:
       '@penntools/core':
         specifier: workspace:*
