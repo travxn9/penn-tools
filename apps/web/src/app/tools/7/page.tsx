@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { parseFile } from "./parseFile";
 import { parseResumeToStructuredData } from "./parseFile";
 import type { UploadedFile } from "./parseFile";
@@ -96,18 +96,10 @@ const IconUpload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="n
 const IconSend = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
 const IconChat = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
 
-// Lightweight word-overlap check used before wordSim is defined in the file.
-function lineOverlap(a: string, b: string): number {
-  const tok = (s: string) => s.toLowerCase().replace(/[^\w]/g, " ").split(/\s+/).filter(w => w.length > 2);
-  const wa = tok(a); const wb = new Set(tok(b));
-  if (!wa.length || !wb.size) return 0;
-  return wa.filter(w => wb.has(w)).length / Math.max(wa.length, wb.size);
-}
+// ── Canvas-based PDF renderer ──────────────────────────────────────────────────
+type PageData = { url: string };
 
-// ── Canvas-based PDF renderer — supports deletion overlays ─────────────────────
-type PageData = { url: string; overlays: { top: number; height: number }[] };
-
-function PdfCanvasViewer({ fileUrl, deletedLines }: { fileUrl: string; deletedLines?: string[] }) {
+function PdfCanvasViewer({ fileUrl }: { fileUrl: string }) {
   const [pages, setPages] = useState<PageData[]>([]);
 
   useEffect(() => {
@@ -136,42 +128,12 @@ function PdfCanvasViewer({ fileUrl, deletedLines }: { fileUrl: string; deletedLi
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport }).promise;
 
-        // Compute overlays from text positions
-        const overlays: PageData["overlays"] = [];
-        if (deletedLines?.length) {
-          type Item = { str: string; transform: number[] };
-          const items = (await page.getTextContent()).items as Item[];
-
-          // Group items onto lines by y proximity (within 3 PDF units)
-          const lineGroups: { y: number; h: number; text: string }[] = [];
-          for (const item of items) {
-            if (!item.str.trim()) continue;
-            const pdfY = item.transform[5] ?? 0;
-            const pdfH = Math.abs(item.transform[3] ?? 10);
-            const existing = lineGroups.find(g => Math.abs(g.y - pdfY) < 3);
-            if (existing) { existing.text += " " + item.str; }
-            else { lineGroups.push({ y: pdfY, h: pdfH, text: item.str }); }
-          }
-
-          for (const line of lineGroups) {
-            const isDeleted = deletedLines.some(dl => lineOverlap(line.text, dl) > 0.35);
-            if (!isDeleted) continue;
-            // Convert PDF coords (bottom-up) → viewport pixels (top-down) → CSS px
-            const [, vpBaseline] = viewport.convertToViewportPoint(0, line.y);
-            const lineH = line.h * scale;
-            overlays.push({
-              top:    Math.max(0, (vpBaseline - lineH) / dpr),
-              height: lineH / dpr + 2,
-            });
-          }
-        }
-
-        result.push({ url: canvas.toDataURL("image/png"), overlays });
+        result.push({ url: canvas.toDataURL("image/png") });
       }
       if (!cancelled) setPages(result);
     })().catch(console.error);
     return () => { cancelled = true; };
-  }, [fileUrl, deletedLines]);
+  }, [fileUrl]);
 
   if (!pages.length) {
     return (
@@ -183,17 +145,7 @@ function PdfCanvasViewer({ fileUrl, deletedLines }: { fileUrl: string; deletedLi
   return (
     <div style={{ width: PDF_WIDTH }}>
       {pages.map((page, i) => (
-        <div key={i} style={{ position: "relative" }}>
-          <img src={page.url} width={PDF_WIDTH} style={{ display: "block" }} alt={`Page ${i + 1}`} />
-          {page.overlays.map((o, j) => (
-            <div key={j} style={{
-              position: "absolute", left: 0, right: 0,
-              top: o.top, height: o.height,
-              background: "rgba(239,68,68,0.18)",
-              pointerEvents: "none",
-            }} />
-          ))}
-        </div>
+        <img key={i} src={page.url} width={PDF_WIDTH} style={{ display: "block" }} alt={`Page ${i + 1}`} />
       ))}
     </div>
   );
@@ -1057,12 +1009,6 @@ function ComparisonScreen({ onAccept, onBack, jobDescription, baseResumeContent,
   baseResumeFileUrl?: string;
   editedText: string;
 }) {
-  const deletedLines = useMemo(() => {
-    const tailLines = editedText.split("\n").map(l => l.trim()).filter(Boolean);
-    return baseResumeContent.split("\n").map(l => l.trim()).filter(Boolean)
-      .filter(line => classifyOrigLine(line, tailLines) === "deleted");
-  }, [baseResumeContent, editedText]);
-
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       {/* Top bar */}
@@ -1079,11 +1025,8 @@ function ComparisonScreen({ onAccept, onBack, jobDescription, baseResumeContent,
 
       {/* Full-width column headers */}
       <div style={{ display: "flex", flexShrink: 0, gap: 4 }}>
-        <div style={{ flex: 1, padding: "10px 20px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ flex: 1, padding: "10px 20px", background: "#f1f5f9", display: "flex", alignItems: "center" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 1 }}>Original Resume</span>
-          <span style={{ fontSize: 10, color: "#9ca3af" }}>
-            <span style={{ background: "rgba(239,68,68,0.18)", borderRadius: 3, padding: "1px 6px", color: "#b91c1c" }}>red = removed</span>
-          </span>
         </div>
         <div style={{ flex: 1, padding: "10px 20px", background: "#0369a1", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 1 }}>Tailored Resume ✦</span>
@@ -1100,7 +1043,7 @@ function ComparisonScreen({ onAccept, onBack, jobDescription, baseResumeContent,
           <ScaledPdfPane>
             {baseResumeFileUrl ? (
               <PdfCard style={{ padding: 0, overflow: "hidden" }}>
-                <PdfCanvasViewer fileUrl={baseResumeFileUrl} deletedLines={deletedLines} />
+                <PdfCanvasViewer fileUrl={baseResumeFileUrl} />
               </PdfCard>
             ) : (
               <PdfCard>
