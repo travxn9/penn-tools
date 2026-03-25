@@ -1029,12 +1029,12 @@ function ComparisonScreen({ onAccept, onBack, jobDescription, baseResumeContent,
       </div>
 
       {/* Full-width column headers */}
-      <div style={{ display: "flex", flexShrink: 0, gap: 4 }}>
-        <div style={{ flex: 1, padding: "10px 20px", background: "#f1f5f9", display: "flex", alignItems: "center" }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: 1 }}>Original Resume</span>
+      <div style={{ display: "flex", flexShrink: 0, borderTop: "1px solid #e5e7eb", borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ flex: 1, padding: "10px 20px", background: "#fff", borderRight: "1px solid #e5e7eb", display: "flex", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1 }}>Original Resume</span>
         </div>
-        <div style={{ flex: 1, padding: "10px 20px", background: "#0369a1", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", textTransform: "uppercase", letterSpacing: 1 }}>Tailored Resume ✦</span>
+        <div style={{ flex: 1, padding: "10px 20px", background: "#eff6ff", display: "flex", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#011F5B", textTransform: "uppercase", letterSpacing: 1 }}>Tailored Resume ✦</span>
         </div>
       </div>
 
@@ -1054,6 +1054,9 @@ function ComparisonScreen({ onAccept, onBack, jobDescription, baseResumeContent,
               </PdfCard>
             )}
           </ScaledPdfPane>
+
+          {/* Vertical divider between panes */}
+          <div style={{ width: 1, background: "#e5e7eb", flexShrink: 0 }} />
 
           <ScaledPdfPane>
             <PdfCard>
