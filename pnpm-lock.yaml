@@ -32,6 +32,12 @@ importers:
       '@penntools/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@penntools/tool-18':
+        specifier: workspace:*
+        version: link:../../tools/18
+      '@penntools/tool-3':
+        specifier: workspace:*
+        version: link:../../tools/3
       '@penntools/tool-7':
         specifier: workspace:*
         version: link:../../tools/7
@@ -103,6 +109,32 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
+
+  tools/18:
+    dependencies:
+      '@penntools/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.33)
+
+  tools/3:
+    dependencies:
+      '@penntools/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.33)
 
   tools/7:
     dependencies:
