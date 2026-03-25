@@ -12,20 +12,17 @@ The tool uses an AI model to generate tailored resumes. You need to provide an A
 
 1. Open `apps/web/.env.local` in a text editor
 2. Fill in your Anthropic key:
-   ```
+  ```
    ANTHROPIC_API_KEY=sk-ant-...
-   ```
+  ```
    Or your OpenAI key (if you have one with active credits):
-   ```
-   OPENAI_API_KEY=sk-...
-   ```
 3. Save the file and restart the dev server
 
 > **Note:** Anthropic is preferred. If using Anthropic, make sure your account has credits at [console.anthropic.com](https://console.anthropic.com) → Plans & Billing, and that your workspace spend limit is not set to $0 (Settings → Workspaces).
 
 **Option B — Enter it in the AskPenn platform playground:**
 
-1. Go to **http://localhost:3000/tools/platform-playground**
+1. Go to **[http://localhost:3000/tools/platform-playground](http://localhost:3000/tools/platform-playground)**
 2. Find the API key input field and enter your key
 3. It saves automatically to your browser — no restart needed
 4. The Resume Customizer will pick it up on the next request
@@ -38,7 +35,7 @@ The tool uses an AI model to generate tailored resumes. You need to provide an A
 pnpm --filter @penntools/web dev
 ```
 
-Then open **http://localhost:3000/tools/7** in your browser.
+Then open **[http://localhost:3000/tools/7](http://localhost:3000/tools/7)** in your browser.
 
 ---
 
@@ -47,6 +44,7 @@ Then open **http://localhost:3000/tools/7** in your browser.
 The tool follows a linear 5-step flow:
 
 ### Step 1 — Upload
+
 Upload one or more files from your computer. Supported formats: **PDF, DOCX, PPTX, TXT**.
 
 - Select a **file type tag** (Resume, Cover Letter, Project, Job Description, Writing Sample) before clicking "+ Add File" — you can change or delete any file after uploading
@@ -54,6 +52,7 @@ Upload one or more files from your computer. Supported formats: **PDF, DOCX, PPT
 - Upload as many supporting files as you want — the AI will use all of them as context when generating
 
 ### Step 2 — Workspace
+
 Review your uploaded files in the sidebar. The center panel shows a preview of whichever file is selected as your base resume.
 
 - **Change tags or delete files** using the inline controls in the sidebar
@@ -62,6 +61,7 @@ Review your uploaded files in the sidebar. The center panel shows a preview of w
 - Click **Generate Tailored Resume** when ready
 
 ### Step 3 — Edit
+
 The AI-generated tailored resume is loaded into a rich-text editor.
 
 - Use the **formatting toolbar** to adjust font, size, bold/italic/underline, alignment, and margins
@@ -70,12 +70,14 @@ The AI-generated tailored resume is loaded into a rich-text editor.
 - Click **Compare →** when you're satisfied with your edits
 
 ### Step 4 — Compare
+
 Side-by-side view of your original resume (left) and your final edited version (right).
 
 - Click **← Back to Edit** to return to the editor and make further changes
 - Click **Export →** when you're happy with the result
 
 ### Step 5 — Export
+
 - **Download PDF** — generates a US Letter PDF of your edited resume
 - **Copy Text** — copies plain text to your clipboard
 - **Tailor for another job →** — returns you to the Workspace with your files still loaded so you can generate for a different role
@@ -93,7 +95,6 @@ Side-by-side view of your original resume (left) and your final edited version (
 
 ## What It Cannot Do Yet
 
-- **Preserve original resume formatting on export** — PDFs are parsed to plain text, so the exported version will not match your original layout/design
 - **Generate cover letters** — resume-only for now
 - **Save your session** — refreshing the page clears all uploaded files and generated content
 - **Fine-tuned tailoring quality** — the AI generation is basic; the data team will improve prompt quality in a later iteration
@@ -112,6 +113,8 @@ Side-by-side view of your original resume (left) and your final edited version (
 ## Feedback
 
 Please share feedback directly with Nicole. Useful things to note:
+
 - Which step did you get stuck on, and what did you expect to happen?
 - Did the AI output look reasonable given your resume and job description?
 - Any formatting or display issues in the editor or export?
+
